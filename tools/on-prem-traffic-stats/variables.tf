@@ -29,3 +29,8 @@ variable "on_prem_ip_range" {
 variable "dataset_name" {
     default = "vpc_flowlogs_dataset"
 }
+
+variable "location" {
+    description = "GCP location, i.e. (multi-)region, where resources will be created"
+    default = "EU"
+}

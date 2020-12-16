@@ -28,7 +28,7 @@ module "destination" {
   source                   = "terraform-google-modules/log-export/google//modules/bigquery"
   project_id               = var.logs_project_id
   dataset_name             = var.dataset_name
-  location                 = "EU"
+  location                 = var.location
   log_sink_writer_identity = module.log_export.writer_identity
 }
 
@@ -45,7 +45,7 @@ data "template_file" "bigquery_view" {
 resource "google_bigquery_job" "job" {
   project  = var.logs_project_id
   job_id   = "vpc_flowlogs"
-  location = "EU"
+  location = var.location
 
   query {
     query = data.template_file.bigquery_view.rendered
