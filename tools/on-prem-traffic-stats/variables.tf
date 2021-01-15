@@ -26,6 +26,14 @@ variable "on_prem_ip_range" {
     default = "10.0.0.0/24"
 }
 
+variable "ipv4_prefix" {
+    default = "24"
+}
+
+variable "ipv6_prefix" {
+    default = "64"
+}
+
 variable "dataset_name" {
     default = "vpc_flowlogs_dataset"
 }
