@@ -15,23 +15,26 @@
  */
 
 variable "vpc_project_id" {
-    default = "bigorg-hub-prod-prj-e126d530"
+    type = string
 }
 
 variable "logs_project_id" {
-    default = "bigorg-vpc-flowlogs-a6b76d26"
+    type = string
 }
 
 variable "on_prem_ip_range" {
+    type = string
     default = "10.0.0.0/24"
 }
 
 variable "ipv4_prefix" {
-    default = "24"
+    type = number
+    default = 24
 }
 
 variable "ipv6_prefix" {
-    default = "64"
+    type = number
+    default = 64
 }
 
 variable "dataset_name" {

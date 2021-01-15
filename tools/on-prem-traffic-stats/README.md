@@ -4,17 +4,23 @@ Provides the ability to monitor VPC flowlogs to specific IP address ranges. This
 
 ## Resources
 
-* Logs sink
-* BigQuery dataset
-* BigQuery job
+* Logs sink (for traffic logs)
+* BigQuery dataset (for traffic logs)
+* BigQuery view (report)
+* BigQuery functions (for the view)
 
-## Limitations
+## Requirements
 
-Right now, saved queries can [only be created via the UI](https://cloud.google.com/bigquery/docs/saving-sharing-queries). Right after spinning up the module, you'll have to:
+The following items should be provisioned before spinning up the project:
 
-1. Click in *Job History*
-2. Choose the latest job executed. This one starts with `CREATE TEMP FUNCTION` and it will contain the IP address ranges specified in the configuration.
-3. Click on *Open query in editor*
-4. Click on *Save > Save Query*
+* An existing project where the [log sink](https://github.com/terraform-google-modules/terraform-google-log-export) will be created.
+* An existing project where [BigQuery dataset](https://github.com/terraform-google-modules/terraform-google-log-export/tree/master/modules/bigquery) will be created.
+* [VPC flow logs](https://cloud.google.com/vpc/docs/using-flow-logs) must be already enabled in the target subnets where traffic should be monitored.
 
-This will allow you to execute this query afterwards directly via the console.
+## Usage
+
+Once installed with the right configuration values, you'll see a view with the name `on_prem_traffic_report` under the newly created dataset. This dataset will automatically get populated by Cloud Operations with the VPC flow logs that are enabled in the project where the log sink resides.
+
+## Costs
+
+If you enable VPC flow logs, they will be sent by default to the `_Default` log sink. You can either disable the `_Default` log sink (not recommended) or create an exclusion rule that skips VPC flow logs.
