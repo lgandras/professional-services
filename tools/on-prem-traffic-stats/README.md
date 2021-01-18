@@ -4,9 +4,11 @@ This solutions allows perform following analysys of the traffic between Google C
 
 ## Attributing Interconnect or VPN usage to specific service projects in Shared VPC
 
-In case of traffic flowing between the Google Cloud projects and on-premises networks, egress traffic towards on-premises is billed. If that traffic is captured and measured in the (landing zone `interconnect` project)[https://services.google.com/fh/files/misc/google-cloud-security-foundations-guide.pdf] (see page 33, "The example.com Dedicated Interconnect connection structure"), then the attribution to the service projects will be lost. So it is possible to determine which business unit or team generated the traffic only by inspecting IP ranges of the packets. In case if subnets in the Shared VPC are shared between multiple service projects (which is recommended approach to have larger subnets) - it is impossible to distinguish and attribute traffic based only on the IP address. 
+In case of traffic flowing between the Google Cloud projects and on-premises networks, egress traffic towards on-premises is billed. If that traffic is captured and measured in the [landing zone `interconnect` project (see page 33, "The example.com Dedicated Interconnect connection structure")](https://services.google.com/fh/files/misc/google-cloud-security-foundations-guide.pdf), then the attribution to the service projects will be lost. It is still possible to determine which business unit or team generated the traffic only by inspecting IP ranges of the packets. In case if subnets in the Shared VPC are assigned to multiple service projects (which is a recommended approach to have larger subnets) - it is impossible to distinguish and attribute traffic based only on the IP address. 
 
-To address this the VPC Flow Logs are collected in the Shared VPC host in each environment, where the full metadata is available. This allows to capture the project_id for the egress traffic, which later can be attributed to the customer project. On the other hand capturing only the IP ranges of the on-premises networks ensures that the amount of stored logs (and thus costs) is minimised.
+To address this limitation the VPC Flow Logs are collected in the Shared VPC host project in each environment, where the full metadata is available. This allows to capture the project_id for the egress traffic, which later can be attributed to the specific business unit or the team. 
+
+To minimize amount and thus costs of the stored logs - only traffic towards the IP ranges of the on-premises networks is captured.
 
 ## Deployed resources
 
