@@ -1,13 +1,19 @@
-# VPC Flowlogs Monitoring
+# VPC Flow Logs Analysis 
 
-Provides the ability to monitor VPC flowlogs to specific IP address ranges. This allows to example to monitor traffic to on-prem.
+This solutions allows perform following analysys of the traffic between Google Cloud based projects and on-premises networks.
 
-## Resources
+## Attributing Interconnect or VPN usage to specific service projects in Shared VPC
 
-* Logs sink (for traffic logs)
-* BigQuery dataset (for traffic logs)
+In case of traffic flowing between the Google Cloud projects and on-premises networks, egress traffic towards on-premises is billed. If that traffic is captured and measured in the (landing zone `interconnect` project)[https://services.google.com/fh/files/misc/google-cloud-security-foundations-guide.pdf] (see page 33, "The example.com Dedicated Interconnect connection structure"), then the attribution to the service projects will be lost. So it is possible to determine which business unit or team generated the traffic only by inspecting IP ranges of the packets. In case if subnets in the Shared VPC are shared between multiple service projects (which is recommended approach to have larger subnets) - it is impossible to distinguish and attribute traffic based only on the IP address. 
+
+To address this the VPC Flow Logs are collected in the Shared VPC host in each environment, where the full metadata is available. This allows to capture the project_id for the egress traffic, which later can be attributed to the customer project. On the other hand capturing only the IP ranges of the on-premises networks ensures that the amount of stored logs (and thus costs) is minimised.
+
+## Deployed resources
+
+* Logs sink and filter (for collecting logs only with traffic sent from the Cloud to on-premises network)
+* BigQuery dataset (for storing traffic logs)
 * BigQuery view (report)
-* BigQuery functions (for the view)
+* BigQuery functions (aggregation and labelling of the addresses/ports for the view)
 
 ## Requirements
 
@@ -19,7 +25,7 @@ The following items should be provisioned before spinning up the project:
 
 ## Usage
 
-Once installed with the right configuration values, you'll see a view with the name `on_prem_traffic_report` under the newly created dataset. This dataset will automatically get populated by Cloud Operations with the VPC flow logs that are enabled in the project where the log sink resides.
+Once installed with the right configuration values, you'll see a view with the name `on_prem_traffic_report` under the newly created dataset. This dataset will automatically get populated by Cloud Operations with the VPC flow logs that are enabled in the project where the log sink resides. It may take some minutes for first entries to appear in the dataset.
 
 ## Costs
 
