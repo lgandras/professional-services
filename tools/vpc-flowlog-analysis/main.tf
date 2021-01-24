@@ -17,7 +17,13 @@
 module "log_export" {
   source                 = "terraform-google-modules/log-export/google"
   destination_uri        = module.destination.destination_uri
-  filter                 = "logName=\"projects/${var.vpc_project_id}/logs/compute.googleapis.com%2Fvpc_flows\" jsonPayload.reporter=\"SRC\" (ip_in_net(jsonPayload.connection.dest_ip, \"${var.on_prem_ip_range}\"))"
+  filter                 = <<EOT
+  logName="projects/${var.vpc_project_id}/logs/compute.googleapis.com%2Fvpc_flows" jsonPayload.reporter="SRC"
+      (${join(" OR ", formatlist("ip_in_net(jsonPayload.connection.dest_ip, \"%s\")", var.include_interconnect_ip_ranges))})
+  %{if 0 < length(var.exclude_interconnect_ip_ranges)}
+  NOT (${join(" OR ", formatlist("ip_in_net(jsonPayload.connection.dest_ip, \"%s\")", var.exclude_interconnect_ip_ranges))})
+  %{endif}
+EOT
   log_sink_name          = "tf-sink"
   parent_resource_id     = var.vpc_project_id
   parent_resource_type   = "project"
