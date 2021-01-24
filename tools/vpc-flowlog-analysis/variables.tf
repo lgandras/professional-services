@@ -22,26 +22,23 @@ variable "logs_project_id" {
     type = string
 }
 
-variable "on_prem_ip_range" {
+variable "interconnect_ip_ranges_include" {
     type = string
-    default = "10.0.0.0/24"
+    default = ["10.0.0.0/23"]
 }
 
-variable "ipv4_prefix" {
-    type = number
-    default = 24
-}
-
-variable "ipv6_prefix" {
-    type = number
-    default = 64
+variable "interconnect_ip_ranges_exclude" {
+    type = string
+    default = ["10.0.0.0/24"]
 }
 
 variable "dataset_name" {
+    type = string
     default = "vpc_flowlogs_dataset"
 }
 
 variable "location" {
+    type = string
     description = "GCP location, i.e. (multi-)region, where resources will be created"
     default = "EU"
 }
