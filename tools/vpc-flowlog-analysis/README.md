@@ -37,3 +37,18 @@ Once installed with the right configuration values, you'll see a view with the n
 ## Costs
 
 If you enable VPC flow logs, they will be sent by default to the `_Default` log sink. You can either disable the `_Default` log sink (not recommended) or create an exclusion rule that skips VPC flow logs.
+
+## Inputs
+
+| Name | Description | Type | Default | Required |
+|------|-------------|------|---------|:--------:|
+| dataset\_name | Name that the BigQuery dataset is going to have in the logs project (referenced by logs\_project\_id) where VPC flowlogs are going to be stored. | `string` | `"vpc_flowlogs_dataset"` | no |
+| exclude\_interconnect\_ip\_ranges | IP address ranges of VPC flowlog packets that should be ignored from ingestion into the BigQuery sink. These are useful if the included interconnect IP address ranges contain sub-ranges that should be ignored. | `list(string)` | `[]` | no |
+| include\_interconnect\_ip\_ranges | IP address ranges of VPC flowlog packets that should be ingested into the BigQuery sink. Only this ranges (minus any overlapping excluded ranges) will be used to calculate the total Interconnect traffic. | `list(string)` | n/a | yes |
+| location | GCP location, i.e. (multi-)region, where resources will be created. The list of all available values can be found under https://cloud.google.com/storage/docs/locations#available_locations. | `string` | `"EU"` | no |
+| logs\_project\_id | Id of the project where the BigQuery dataset with the VPC flowlogs will be stored. | `string` | n/a | yes |
+| vpc\_project\_ids | Set of project ids where a sink should be created and thus, VPC flowlogs should be ingested. This does not activate VPC flowlogs, it only ingests already activated VPC flowlogs. | `set(string)` | n/a | yes |
+
+## Outputs
+
+No output.
