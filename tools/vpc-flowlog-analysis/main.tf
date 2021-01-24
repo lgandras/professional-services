@@ -15,17 +15,18 @@
  */
 
 module "log_export" {
+  for_each               = var.vpc_project_ids
   source                 = "terraform-google-modules/log-export/google"
   destination_uri        = module.destination.destination_uri
   filter                 = <<EOT
-  logName="projects/${var.vpc_project_id}/logs/compute.googleapis.com%2Fvpc_flows" jsonPayload.reporter="SRC"
+  logName="projects/${each.value}/logs/compute.googleapis.com%2Fvpc_flows" jsonPayload.reporter="SRC"
       (${join(" OR ", formatlist("ip_in_net(jsonPayload.connection.dest_ip, \"%s\")", var.include_interconnect_ip_ranges))})
   %{if 0 < length(var.exclude_interconnect_ip_ranges)}
   NOT (${join(" OR ", formatlist("ip_in_net(jsonPayload.connection.dest_ip, \"%s\")", var.exclude_interconnect_ip_ranges))})
   %{endif}
 EOT
   log_sink_name          = "tf-sink"
-  parent_resource_id     = var.vpc_project_id
+  parent_resource_id     = each.value
   parent_resource_type   = "project"
   unique_writer_identity = true
 }
@@ -35,7 +36,15 @@ module "destination" {
   project_id               = var.logs_project_id
   dataset_name             = var.dataset_name
   location                 = var.location
-  log_sink_writer_identity = module.log_export.writer_identity
+  log_sink_writer_identity = module.log_export[keys(module.log_export)[0]].writer_identity
+}
+
+# copied from terraform-google-modules/log-export/google//modules/bigquery
+resource "google_project_iam_member" "bigquery_sink_member" {
+  for_each = module.log_export
+  project  = var.logs_project_id
+  role     = "roles/bigquery.dataEditor"
+  member   = each.value.writer_identity
 }
 
 locals {

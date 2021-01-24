@@ -14,9 +14,9 @@
  * limitations under the License.
  */
 
-variable "vpc_project_id" {
-  type        = string
-  description = "If of the project where the sink should be created and thus, VPC flowlogs should be ingested. This does not activate VPC flowlogs, it only ingests already activated VPC flowlogs."
+variable "vpc_project_ids" {
+  type        = set(string)
+  description = "Set of project ids where a sink should be created and thus, VPC flowlogs should be ingested. This does not activate VPC flowlogs, it only ingests already activated VPC flowlogs."
 }
 
 variable "logs_project_id" {
