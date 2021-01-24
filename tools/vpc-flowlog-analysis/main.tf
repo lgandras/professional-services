@@ -39,7 +39,7 @@ module "destination" {
 }
 
 locals {
-  functions = {
+  routines = {
     "PORTS_TO_PROTO" = {
       "definition_body" = trimspace(<<EOF
         CASE
@@ -53,23 +53,23 @@ locals {
 EOF
       )
       "arguments" = [
-        {"name" = "src_port", "typeKind" = "INT64"},
-        {"name" = "dst_port", "typeKind" = "INT64"},
+        { "name" = "src_port", "typeKind" = "INT64" },
+        { "name" = "dst_port", "typeKind" = "INT64" },
       ]
     },
   }
 }
 
-resource "google_bigquery_routine" "functions" {
-  for_each     = local.functions
-  project      = var.logs_project_id
-  dataset_id   = var.dataset_name
-  routine_id   = each.key
-  language     = "SQL"
-  routine_type = "SCALAR_FUNCTION"
+resource "google_bigquery_routine" "main" {
+  for_each        = local.routines
+  project         = var.logs_project_id
+  dataset_id      = var.dataset_name
+  routine_id      = each.key
+  language        = "SQL"
+  routine_type    = "SCALAR_FUNCTION"
   definition_body = each.value["definition_body"]
   dynamic "arguments" {
-    for_each  = each.value["arguments"] != null ? each.value["arguments"] : []
+    for_each = each.value["arguments"] != null ? each.value["arguments"] : []
     content {
       name      = arguments["value"]["name"]
       data_type = "{\"typeKind\" :  \"${arguments.value.typeKind}\"}"
@@ -77,14 +77,14 @@ resource "google_bigquery_routine" "functions" {
   }
 }
 
-resource "google_bigquery_table" "report" {
+resource "google_bigquery_table" "main" {
   dataset_id    = var.dataset_name
   friendly_name = "On-Prem Traffic Report"
   table_id      = "on_prem_traffic_report"
   project       = var.logs_project_id
 
   view {
-    query          = trimspace(<<EOF
+    query = trimspace(<<EOF
 SELECT 
   DATE_TRUNC(PARSE_DATE('%F', SPLIT(jsonPayload.start_time, 'T')[OFFSET(0)]), WEEK) as day,
   `${var.logs_project_id}.${var.dataset_name}.PORTS_TO_PROTO`(
