@@ -22,14 +22,8 @@ variable "logs_project_id" {
     type = string
 }
 
-variable "interconnect_ip_ranges_include" {
+variable "on_prem_ip_range" {
     type = string
-    default = ["10.0.0.0/23"]
-}
-
-variable "interconnect_ip_ranges_exclude" {
-    type = string
-    default = ["10.0.0.0/24"]
 }
 
 variable "dataset_name" {
