@@ -88,9 +88,15 @@ resource "google_bigquery_routine" "main" {
 
 resource "google_bigquery_table" "main" {
   dataset_id    = var.dataset_name
-  friendly_name = "On-Prem Traffic Report"
-  table_id      = "on_prem_traffic_report"
+  friendly_name = "Interconnect Traffic Report"
+  table_id      = "interconnect_traffic_report"
   project       = var.logs_project_id
+  description   = <<EOT
+  Interconnect traffic report based on packets headed to the IP address ranges: ${join(", ", var.include_interconnect_ip_ranges)}
+  %{if 0 < length(var.exclude_interconnect_ip_ranges)}
+  As configured, packets to the following IP address ranges have been excluded: ${join(", ", var.exclude_interconnect_ip_ranges)}
+  %{endif}
+EOT
 
   view {
     query = trimspace(<<EOF
