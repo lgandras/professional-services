@@ -2,6 +2,11 @@
 
 As a central network management team member in enterprise organisation, I want to be able to analyse the egress traffic from the Google Cloud projects towards on-premises networks, so that I can attribute egress traffic costs over shared Interconnect or VPN to the specific Google Cloud projects and thus to business unit or cost center. 
 
+Here is the example report after the solution is deployed.
+
+![example_bigquery_report](asset/example_report.png)
+
+
 ## Attributing Interconnect or VPN usage to specific service projects in Shared VPC
 
 In case of the traffic flow between the Google Cloud projects and on-premises networks, egress traffic towards on-premises is billed. If there is a central IT team that manages [central landing zone and connectivity to the on-premises](https://cloud.google.com/solutions/images/vpc-bps-l7-firewall.svg), they need to pass costs to the respective business units/teams as a part of their managed cloud platform offer.
@@ -14,6 +19,7 @@ If the traffic is captured and measured in the [Untrusted (global) VPC](https://
 To address this limitation the VPC Flow Logs are collected in the Shared VPC host project in each environment ([Prod VPC, Dev VPC](https://cloud.google.com/solutions/images/vpc-bps-native-firewall-rules.svg)), where the full metadata is available. This allows to capture the `project_id` for the egress traffic, which later can be attributed to the specific business unit or the team. 
 
 To minimize amount and thus costs of the stored VPC Flow Logs - only traffic towards the IP ranges of the on-premises networks is captured in the LogSink and the rest is discarded (i.e. traffic between the projects, towards the internet or to Cloud APIs).
+
 
 ## Requirements
 
