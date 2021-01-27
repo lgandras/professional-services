@@ -25,7 +25,7 @@ module "log_export" {
   NOT (${join(" OR ", formatlist("ip_in_net(jsonPayload.connection.dest_ip, \"%s\")", var.exclude_interconnect_ip_ranges))})
   %{endif}
 EOT
-  log_sink_name          = "tf-sink"
+  log_sink_name          = "vpc-log-sink"
   parent_resource_id     = each.value
   parent_resource_type   = "project"
   unique_writer_identity = true
@@ -101,7 +101,7 @@ EOT
   view {
     query = trimspace(<<EOF
 SELECT 
-  DATE_TRUNC(PARSE_DATE('%F', SPLIT(jsonPayload.start_time, 'T')[OFFSET(0)]), WEEK) as day,
+  DATE_TRUNC(PARSE_DATE('%F', SPLIT(jsonPayload.start_time, 'T')[OFFSET(0)]), `${upper(var.aggregation_period)}`) as time_period,
   `${var.logs_project_id}.${var.dataset_name}.PORTS_TO_PROTO`(
     CAST(jsonPayload.connection.src_port as INT64), 
     CAST(jsonPayload.connection.dest_port as INT64)
@@ -113,7 +113,7 @@ SELECT
 FROM `${var.logs_project_id}.${var.dataset_name}.compute_googleapis_com_vpc_flows_*`
 
 GROUP BY
-day, protocol, src_project_id
+time_period, protocol, src_project_id
 ORDER BY packets DESC
 
 EOF
