@@ -27,7 +27,7 @@ The following items should be provisioned before spinning up the project:
 
 ## Resources deployed by this solution
 
-* Logs sink and filter (for collecting logs only with traffic sent from the Cloud to on-premises network)
+* Log sink and filter (for collecting logs only with traffic sent from the Cloud to on-premises network)
 * BigQuery dataset (for storing traffic logs)
 * BigQuery view (predefined query to generate the summary)
 * BigQuery functions (aggregation and labelling of the addresses/ports for the view)
