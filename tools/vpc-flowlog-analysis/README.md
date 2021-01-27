@@ -43,6 +43,12 @@ The following items should be provisioned before spinning up the project:
 
 Once installed, you'll see a [BigQuery view](https://cloud.google.com/bigquery/docs/views-intro) with the name `on_prem_traffic_report` under the newly created dataset. This dataset will automatically get populated by Cloud Operations with the VPC Flow Logs that are enabled in the project where the log sink resides. It may take some minutes for first entries to appear in the dataset.
 
+## Limitations
+
+This solution does not optimize BigQuery tables used for the request. Because VPC Flow Logs generate daily partitioned tables, it is possible to optimize BigQuery execution by limiting number of tables requested (for example use `vpc_flowlogs_dataset.compute_googleapis_com_vpc_flows_202101*` to request tables only for January 2021 instead of `compute_googleapis_com_vpc_flows_*` which scans all tables).
+
+As a limitation of VPC Flow Logs, only [TCP and UDP traffic](https://cloud.google.com/vpc/docs/flow-logs#key_properties) is captured.
+
 
 ## Costs
 
