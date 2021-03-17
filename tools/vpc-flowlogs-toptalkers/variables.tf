@@ -14,31 +14,96 @@
  * limitations under the License.
  */
 
-variable "vpc_project_id" {
-    type = string
-}
-
-variable "logs_project_id" {
-    type = string
-}
-
-variable "interconnect_ip_ranges_include" {
-    type = string
-    default = ["10.0.0.0/23"]
-}
-
-variable "interconnect_ip_ranges_exclude" {
-    type = string
-    default = ["10.0.0.0/24"]
-}
-
 variable "dataset_name" {
-    type = string
-    default = "vpc_flowlogs_dataset"
+  type        = string
+  description = "Name that the BigQuery dataset is going to have in the logs project (referenced by logs_project_id) where VPC flowlogs are going to be stored."
+  default     = "vpc_flowlogs_dataset"
 }
 
 variable "location" {
-    type = string
-    description = "GCP location, i.e. (multi-)region, where resources will be created"
-    default = "EU"
+  type        = string
+  description = "GCP location, i.e. (multi-)region, where resources will be created. The list of all available values can be found under https://cloud.google.com/storage/docs/locations#available_locations."
+  default     = "EU"
+}
+
+variable "logs_project_id" {
+  type        = string
+  description = "ID of the project where the BigQuery dataset with the VPC flowlogs will be stored."
+}
+
+variable "vpc_project_ids" {
+  type        = set(string)
+  description = "Set of project ids where a sink should be created and thus, VPC flowlogs should be ingested. This does not activate VPC flowlogs, it only ingests already activated VPC flowlogs."
+}
+
+variable "enable_split_by_destination" {
+  type        = bool
+  default     = true
+  description = "If the report should show traffic split by target IP ranges"
+}
+
+variable "enable_split_by_protocol" {
+  type        = bool
+  default     = true
+  description = "If the report should show traffic split by TCP/UDP protocol"
+}
+
+variable "enable_ipv4_traffic" {
+  type        = bool
+  default     = true
+  description = "If IPv4 traffic should be show in the report. All traffic will be ingested into the dataset regardless of this setting."
+}
+
+variable "ipv4_ranges_to_include" {
+  type        = list(string)
+  default     = []
+  description = "If enable_ipv4_traffic == true, IPv4 ranges to include. An empty list includes any range. All traffic will be ingested into the dataset regardless of this setting."
+}
+
+variable "ipv4_ranges_to_exclude" {
+  type        = list(string)
+  default     = []
+  description = "If enable_ipv4_traffic == true, IPv4 ranges to exclude. All traffic will be ingested into the dataset regardless of this setting."
+}
+
+variable "enable_ipv6_traffic" {
+  type        = bool
+  default     = true
+  description = "If IPv6 traffic should be show in the report. All traffic will be ingested into the dataset regardless of this setting."
+}
+
+variable "ipv6_ranges_to_include" {
+  type        = list(string)
+  default     = []
+  description = "If enable_ipv6_traffic == true, IPv6 ranges to include. An empty list includes any range. All traffic will be ingested into the dataset regardless of this setting."
+}
+
+variable "ipv6_ranges_to_exclude" {
+  type        = list(string)
+  default     = []
+  description = "If enable_ipv6_traffic == true, IPv6 ranges to exclude. All traffic will be ingested into the dataset regardless of this setting."
+}
+
+variable "ipv4_range_labels" {
+  type        = map(string)
+  default     = {}
+  description = "Dictionary that maps IPv4 address ranges to labels. The report will show source and destinations under these labels rather than naked IPs when possible."
+}
+
+variable "ipv6_range_labels" {
+  type        = map(string)
+  default     = {}
+  description = "Dictionary that maps IPv6 address ranges to labels. The report will show source and destinations under these labels rather than naked IPs when possible."
+}
+
+variable "ipv4_aggregate_prefix" {
+  type        = number
+  default     = 24
+  description = "Prefix that will be used to aggregate traffic for IPv4 packets."
+}
+
+variable "ipv6_aggregate_prefix" {
+  type        = number
+  default     = 64
+  description = "Prefix that will be used to aggregate traffic for IPv6 packets."
 }
