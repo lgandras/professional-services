@@ -14,12 +14,88 @@
  * limitations under the License.
  */
 
+locals {
+  ipv4_include_text = trimspace(<<EOT
+  %{if var.enable_ipv4_traffic}
+    %{if 0 < length(var.ipv4_ranges_to_include)}
+      include ${join(", ", var.ipv4_ranges_to_include)} IP address ranges ${local.ipv4_except_text}
+    %{else}
+      include all IP address ranges ${local.ipv4_except_text}
+    %{endif}
+  %{else}
+    not include any ranges
+  %{endif}
+EOT
+    )
+  ipv4_except_text = trimspace(<<EOT
+    %{if 0 < length(var.ipv4_ranges_to_exclude)}
+      except ${join(", ", var.ipv4_ranges_to_exclude)}
+    %{endif}
+EOT
+    )
+
+  ipv6_include_text = trimspace(<<EOT
+  %{if var.enable_ipv6_traffic}
+    %{if 0 < length(var.ipv6_ranges_to_include)}
+      include ${join(", ", var.ipv6_ranges_to_include)} IP address ranges ${local.ipv6_except_text}
+    %{else}
+      include all IP address ranges ${local.ipv6_except_text}
+    %{endif}
+  %{else}
+    not include any ranges
+  %{endif}
+EOT
+    )
+  ipv6_except_text = trimspace(<<EOT
+    %{if 0 < length(var.ipv6_ranges_to_exclude)}
+      except ${join(", ", var.ipv6_ranges_to_exclude)}
+    %{endif}
+EOT
+    )
+
+  ipv4_filter = <<EOT
+  %{if var.enable_ipv4_traffic}
+    TRUE
+    %{if 0 < length(var.ipv4_ranges_to_include)}
+      AND (${join(" OR ", formatlist("IP_STRINGS_IN_CIDR(jsonPayload.connection.src_ip, jsonPayload.connection.dest_ip, '%s')", var.ipv4_ranges_to_include))})
+    %{endif}
+    %{if 0 < length(var.ipv4_ranges_to_exclude)}
+      AND NOT (${join(" OR ", formatlist("IP_STRINGS_IN_CIDR(jsonPayload.connection.src_ip, jsonPayload.connection.dest_ip, '%s')", var.ipv4_ranges_to_exclude))})
+    %{endif}
+  %{else}
+    FALSE
+  %{endif}
+
+EOT
+  ipv6_filter = <<EOT
+  %{if var.enable_ipv6_traffic}
+    TRUE
+    %{if 0 < length(var.ipv6_ranges_to_include)}
+      AND (${join(" OR ", formatlist("IP_STRINGS_IN_CIDR(jsonPayload.connection.src_ip, jsonPayload.connection.dest_ip, '%s')", var.ipv6_ranges_to_include))})
+    %{endif}
+    %{if 0 < length(var.ipv6_ranges_to_exclude)}
+      AND NOT (${join(" OR ", formatlist("IP_STRINGS_IN_CIDR(jsonPayload.connection.src_ip, jsonPayload.connection.dest_ip, '%s')", var.ipv6_ranges_to_exclude))})
+    %{endif}
+  %{else}
+    FALSE
+  %{endif}
+EOT
+
+  group_by = join(", ", concat(
+    ["src"],
+    var.enable_split_by_destination ? ["dest"] : [],
+    ["ip_version", "time_period"],
+    var.enable_split_by_protocol ? ["protocol"] : []
+  ))
+}
+
 module "log_export" {
+  for_each               = var.vpc_project_ids
   source                 = "terraform-google-modules/log-export/google"
   destination_uri        = module.destination.destination_uri
-  filter                 = "logName=\"projects/${var.vpc_project_id}/logs/compute.googleapis.com%2Fvpc_flows\" jsonPayload.reporter=\"SRC\" (ip_in_net(jsonPayload.connection.dest_ip, \"${var.on_prem_ip_range}\"))"
-  log_sink_name          = "tf-sink"
-  parent_resource_id     = var.vpc_project_id
+  filter                 = "logName=\"projects/${each.value}/logs/compute.googleapis.com%2Fvpc_flows\" jsonPayload.reporter=\"SRC\""
+  log_sink_name          = "toptalkers-sink"
+  parent_resource_id     = each.value
   parent_resource_type   = "project"
   unique_writer_identity = true
 }
@@ -29,7 +105,15 @@ module "destination" {
   project_id               = var.logs_project_id
   dataset_name             = var.dataset_name
   location                 = var.location
-  log_sink_writer_identity = module.log_export.writer_identity
+  log_sink_writer_identity = module.log_export[keys(module.log_export)[0]].writer_identity
+}
+
+# copied from terraform-google-modules/log-export/google//modules/bigquery
+resource "google_project_iam_member" "bigquery_sink_member" {
+  for_each = module.log_export
+  project  = var.logs_project_id
+  role     = "roles/bigquery.dataEditor"
+  member   = each.value.writer_identity
 }
 
 locals {
@@ -72,7 +156,8 @@ EOF
       "arguments" = [
         {"name" = "ip", "typeKind" = "BYTES"},
         {"name" = "cidr", "typeKind" = "STRING"},
-      ]
+      ],
+      "depends_on" = ["IP_IN_NET", "IP_FROM_CIDR_STRING", "NET_MASK_FROM_CIDR_STRING"]
     },
     "PORTS_TO_PROTO" = {
       "definition_body" = trimspace(<<EOF
@@ -118,9 +203,8 @@ EOF
               WHEN `${var.logs_project_id}.${var.dataset_name}.IPBYTES_IN_CIDR`(ip, '108.177.96.0/19') then 'gcp'
               WHEN `${var.logs_project_id}.${var.dataset_name}.IPBYTES_IN_CIDR`(ip, '35.191.0.0/16') then 'gcp'
               WHEN `${var.logs_project_id}.${var.dataset_name}.IPBYTES_IN_CIDR`(ip, '130.211.0.0/22') then 'gcp'
-              -- add custom labels for on-premises networks
-              WHEN `${var.logs_project_id}.${var.dataset_name}.IPBYTES_IN_CIDR`(ip, '${var.on_prem_ip_range}') then 'on-prem-system1'
-              ELSE FORMAT('netaddr4-%s', NET.IP_TO_STRING(ip & NET.IP_NET_MASK(4, ${var.ipv4_prefix})))
+              ${join("\n", formatlist("WHEN `${var.logs_project_id}.${var.dataset_name}.IPBYTES_IN_CIDR`(ip, '%s') then '%s'", keys(var.ipv4_range_labels), values(var.ipv4_range_labels)))}
+              ELSE FORMAT('netaddr4-%s', NET.IP_TO_STRING(ip & NET.IP_NET_MASK(4, ${var.ipv4_aggregate_prefix})))
             END
           WHEN 16 THEN
             CASE
@@ -134,9 +218,8 @@ EOF
               WHEN `${var.logs_project_id}.${var.dataset_name}.IPBYTES_IN_CIDR`(ip, '2800:3f0::/32') then 'gcp'
               WHEN `${var.logs_project_id}.${var.dataset_name}.IPBYTES_IN_CIDR`(ip, '2a00:1450::/32') then 'gcp'
               WHEN `${var.logs_project_id}.${var.dataset_name}.IPBYTES_IN_CIDR`(ip, '2c0f:fb50::/32') then 'gcp'
-              -- add custom labels for on-premises networks
-              WHEN `${var.logs_project_id}.${var.dataset_name}.IPBYTES_IN_CIDR`(ip, 'fd00::/8') then 'on-prem-system1'
-              ELSE FORMAT('netaddr6-%s', NET.IP_TO_STRING(ip & NET.IP_NET_MASK(16, ${var.ipv6_prefix})))
+              ${join("\n", formatlist("WHEN `${var.logs_project_id}.${var.dataset_name}.IPBYTES_IN_CIDR`(ip, '%s') then '%s'", keys(var.ipv6_range_labels), values(var.ipv6_range_labels)))}
+              ELSE FORMAT('netaddr6-%s', NET.IP_TO_STRING(ip & NET.IP_NET_MASK(16, ${var.ipv6_aggregate_prefix})))
             END
           END
 EOF
@@ -144,6 +227,7 @@ EOF
       "arguments" = [
         {"name" = "ip", "typeKind" = "BYTES"},
       ]
+      "depends_on" = ["IPBYTES_IN_CIDR"]
     },
     "IP_STRINGS_IN_CIDR" = {
       "definition_body" = trimspace(<<EOF
@@ -156,6 +240,7 @@ EOF
         {"name" = "dest_ip", "typeKind" = "STRING"},
         {"name" = "cidr", "typeKind" = "STRING"},
       ]
+      "depends_on" = ["IPBYTES_IN_CIDR"]
     },
     "IP_STRING_TO_LABEL" = {
       "definition_body" = trimspace(<<EOF
@@ -166,6 +251,7 @@ EOF
       "arguments" = [
         {"name" = "ip_str", "typeKind" = "STRING"},
       ]
+      "depends_on" = "IP_TO_LABEL"
     },
     "IP_VERSION" = {
       "definition_body" = "IF(BYTE_LENGTH(NET.IP_FROM_STRING(ip_str)) = 4, 4, 6)"
@@ -194,17 +280,23 @@ resource "google_bigquery_routine" "functions" {
 }
 
 resource "google_bigquery_table" "report" {
+  for_each = toset(["day", "week", "month"])
   dataset_id    = var.dataset_name
-  friendly_name = "On-Prem Traffic Report"
-  table_id      = "on_prem_traffic_report"
+  friendly_name = "Top Talkers Report"
+  table_id      = "top_talkers_report_${each.key}"
   project       = var.logs_project_id
+  depends_on    = [module.destination]
+  description   = <<EOT
+  Regarding IPv4, the report will ${local.ipv4_include_text}.
+  Regarding IPv6, the report will ${local.ipv6_include_text}.
+EOT
 
   view {
     query          = trimspace(<<EOF
 SELECT
+  DATE_TRUNC(PARSE_DATE('%F', SPLIT(jsonPayload.start_time, 'T')[OFFSET(0)]), `${each.key}`) as time_period,
   `${var.logs_project_id}.${var.dataset_name}.IP_STRING_TO_LABEL`(jsonPayload.connection.src_ip) AS src,
   `${var.logs_project_id}.${var.dataset_name}.IP_STRING_TO_LABEL`(jsonPayload.connection.dest_ip) AS dest,
-  DATE_TRUNC(PARSE_DATE('%F', SPLIT(jsonPayload.start_time, 'T')[OFFSET(0)]), WEEK) as day,
   MIN(jsonPayload.src_vpc.vpc_name) as src_vpc,
   MIN(jsonPayload.dest_vpc.vpc_name) as dest_vpc,
   `${var.logs_project_id}.${var.dataset_name}.PORTS_TO_PROTO`(
@@ -216,7 +308,9 @@ SELECT
 
 FROM `${var.logs_project_id}.${var.dataset_name}.compute_googleapis_com_vpc_flows_*`
 
-GROUP BY src, dest, ip_version, day, protocol
+WHERE IF(`${var.logs_project_id}.${var.dataset_name}.IP_VERSION`(jsonPayload.connection.src_ip) = 4, ${local.ipv4_filter}, ${local.ipv6_filter})
+
+GROUP BY ${local.group_by}
 
 EOF
     )
