@@ -1,0 +1,10 @@
+ipv4_range_labels:
+   #"10.0.0.0/24": "on-prem-system1"
+ipv6_range_labels:
+   #"fd00::/8": "on-prem-system1"
+port_labels:
+   22: "ssh"
+   80: "http"
+   443: "https"
+   8443: "gae" 
+   10402: "gae"

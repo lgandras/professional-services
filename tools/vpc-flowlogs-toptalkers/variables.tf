@@ -84,18 +84,6 @@ variable "ipv6_ranges_to_exclude" {
   description = "If enable_ipv6_traffic == true, IPv6 ranges to exclude. All traffic will be ingested into the dataset regardless of this setting."
 }
 
-variable "ipv4_range_labels" {
-  type        = map(string)
-  default     = {}
-  description = "Dictionary that maps IPv4 address ranges to labels. The report will show source and destinations under these labels rather than naked IPs when possible."
-}
-
-variable "ipv6_range_labels" {
-  type        = map(string)
-  default     = {}
-  description = "Dictionary that maps IPv6 address ranges to labels. The report will show source and destinations under these labels rather than naked IPs when possible."
-}
-
 variable "ipv4_aggregate_prefix" {
   type        = number
   default     = 24

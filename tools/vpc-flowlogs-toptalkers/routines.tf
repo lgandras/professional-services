@@ -14,6 +14,13 @@
  * limitations under the License.
  */
 
+locals {
+  labels = yamldecode(file("labels.yaml"))
+  ipv4_range_labels = coalesce(lookup(local.labels, "ipv4_range_labels", {}), {})
+  ipv6_range_labels = coalesce(lookup(local.labels, "ipv6_range_labels", {}), {})
+  port_labels = coalesce(lookup(local.labels, "port_labels", {}), {})
+}
+
 resource "google_bigquery_routine" "IP_FROM_CIDR_STRING" {
   project      = var.logs_project_id
   dataset_id   = var.dataset_name
@@ -117,11 +124,7 @@ resource "google_bigquery_routine" "PORTS_TO_PROTO" {
   routine_type = "SCALAR_FUNCTION"
   definition_body = trimspace(<<EOF
     CASE
-      WHEN src_port = 22 OR dst_port = 22 then 'ssh'
-      WHEN src_port = 80 OR dst_port = 80 then 'http'
-      WHEN src_port = 443 OR dst_port = 443 then 'https'
-      WHEN src_port = 10402 OR dst_port = 10402 then 'gae' -- AppEngine Flex
-      WHEN src_port = 8443 OR dst_port = 8443 then 'gae' -- AppEngine Flex
+      ${join("\n", formatlist("WHEN src_port = %s OR dst_port = %s then '%s'", keys(local.port_labels), keys(local.port_labels), values(local.port_labels)))}
       ELSE FORMAT('other-%d->%d', src_port, dst_port)
     END
 EOF
@@ -171,7 +174,7 @@ resource "google_bigquery_routine" "IP_TO_LABEL" {
           WHEN `${var.logs_project_id}.${var.dataset_name}.IPBYTES_IN_CIDR`(ip, '108.177.96.0/19') then 'gcp'
           WHEN `${var.logs_project_id}.${var.dataset_name}.IPBYTES_IN_CIDR`(ip, '35.191.0.0/16') then 'gcp'
           WHEN `${var.logs_project_id}.${var.dataset_name}.IPBYTES_IN_CIDR`(ip, '130.211.0.0/22') then 'gcp'
-          ${join("\n", formatlist("WHEN `${var.logs_project_id}.${var.dataset_name}.IPBYTES_IN_CIDR`(ip, '%s') then '%s'", keys(var.ipv4_range_labels), values(var.ipv4_range_labels)))}
+          ${join("\n", formatlist("WHEN `${var.logs_project_id}.${var.dataset_name}.IPBYTES_IN_CIDR`(ip, '%s') then '%s'", keys(local.ipv4_range_labels), values(local.ipv4_range_labels)))}
           ELSE FORMAT('netaddr4-%s', NET.IP_TO_STRING(ip & NET.IP_NET_MASK(4, ${var.ipv4_aggregate_prefix})))
         END
       WHEN 16 THEN
@@ -186,7 +189,7 @@ resource "google_bigquery_routine" "IP_TO_LABEL" {
           WHEN `${var.logs_project_id}.${var.dataset_name}.IPBYTES_IN_CIDR`(ip, '2800:3f0::/32') then 'gcp'
           WHEN `${var.logs_project_id}.${var.dataset_name}.IPBYTES_IN_CIDR`(ip, '2a00:1450::/32') then 'gcp'
           WHEN `${var.logs_project_id}.${var.dataset_name}.IPBYTES_IN_CIDR`(ip, '2c0f:fb50::/32') then 'gcp'
-          ${join("\n", formatlist("WHEN `${var.logs_project_id}.${var.dataset_name}.IPBYTES_IN_CIDR`(ip, '%s') then '%s'", keys(var.ipv6_range_labels), values(var.ipv6_range_labels)))}
+          ${join("\n", formatlist("WHEN `${var.logs_project_id}.${var.dataset_name}.IPBYTES_IN_CIDR`(ip, '%s') then '%s'", keys(local.ipv6_range_labels), values(local.ipv6_range_labels)))}
           ELSE FORMAT('netaddr6-%s', NET.IP_TO_STRING(ip & NET.IP_NET_MASK(16, ${var.ipv6_aggregate_prefix})))
         END
     END
