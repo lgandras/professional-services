@@ -1,5 +1,5 @@
 ipv4_range_labels:
-   #"10.0.0.0/24": "on-prem-system1"
+   "10.0.0.0/32": "network-reserved-ip"
 ipv6_range_labels:
    #"fd00::/8": "on-prem-system1"
 port_labels:
