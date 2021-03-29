@@ -15,6 +15,9 @@
  */
 
 locals {
+  google_cidrs = yamldecode(file("google-cidrs.yaml"))
+  google_ipv4_cidrs = local.google_cidrs.google_ipv4_cidrs
+  google_ipv6_cidrs = local.google_cidrs.google_ipv6_cidrs
   labels = yamldecode(file("labels.yaml"))
   ipv4_range_labels = coalesce(lookup(local.labels, "ipv4_range_labels", {}), {})
   ipv6_range_labels = coalesce(lookup(local.labels, "ipv6_range_labels", {}), {})
@@ -152,43 +155,13 @@ resource "google_bigquery_routine" "IP_TO_LABEL" {
     CASE BYTE_LENGTH(ip)
       WHEN 4 THEN
         CASE
-          WHEN `${var.logs_project_id}.${var.dataset_name}.IPBYTES_IN_CIDR`(ip, '35.191.0.0/16') then 'gce-healthcheck'
-          WHEN `${var.logs_project_id}.${var.dataset_name}.IPBYTES_IN_CIDR`(ip, '130.211.0.0/22') then 'gce-healthcheck'
-          WHEN `${var.logs_project_id}.${var.dataset_name}.IPBYTES_IN_CIDR`(ip, '209.85.152.0/22') then 'gce-healthcheck'
-          WHEN `${var.logs_project_id}.${var.dataset_name}.IPBYTES_IN_CIDR`(ip, '209.85.204.0/22') then 'gce-healthcheck'
-          WHEN `${var.logs_project_id}.${var.dataset_name}.IPBYTES_IN_CIDR`(ip, '64.233.160.0/19') then 'gcp'
-          WHEN `${var.logs_project_id}.${var.dataset_name}.IPBYTES_IN_CIDR`(ip, '66.102.0.0/20') then 'gcp'
-          WHEN `${var.logs_project_id}.${var.dataset_name}.IPBYTES_IN_CIDR`(ip, '66.249.80.0/20') then 'gcp'
-          WHEN `${var.logs_project_id}.${var.dataset_name}.IPBYTES_IN_CIDR`(ip, '72.14.192.0/18') then 'gcp'
-          WHEN `${var.logs_project_id}.${var.dataset_name}.IPBYTES_IN_CIDR`(ip, '74.125.0.0/16') then 'gcp'
-          WHEN `${var.logs_project_id}.${var.dataset_name}.IPBYTES_IN_CIDR`(ip, '108.177.8.0/21') then 'gcp'
-          WHEN `${var.logs_project_id}.${var.dataset_name}.IPBYTES_IN_CIDR`(ip, '173.194.0.0/16') then 'gcp'
-          WHEN `${var.logs_project_id}.${var.dataset_name}.IPBYTES_IN_CIDR`(ip, '209.85.128.0/17') then 'gcp'
-          WHEN `${var.logs_project_id}.${var.dataset_name}.IPBYTES_IN_CIDR`(ip, '216.58.192.0/19') then 'gcp'
-          WHEN `${var.logs_project_id}.${var.dataset_name}.IPBYTES_IN_CIDR`(ip, '216.239.32.0/19') then 'gcp'
-          WHEN `${var.logs_project_id}.${var.dataset_name}.IPBYTES_IN_CIDR`(ip, '172.217.0.0/19') then 'gcp'
-          WHEN `${var.logs_project_id}.${var.dataset_name}.IPBYTES_IN_CIDR`(ip, '172.217.32.0/20') then 'gcp'
-          WHEN `${var.logs_project_id}.${var.dataset_name}.IPBYTES_IN_CIDR`(ip, '172.217.128.0/19') then 'gcp'
-          WHEN `${var.logs_project_id}.${var.dataset_name}.IPBYTES_IN_CIDR`(ip, '172.217.160.0/20') then 'gcp'
-          WHEN `${var.logs_project_id}.${var.dataset_name}.IPBYTES_IN_CIDR`(ip, '172.217.192.0/19') then 'gcp'
-          WHEN `${var.logs_project_id}.${var.dataset_name}.IPBYTES_IN_CIDR`(ip, '108.177.96.0/19') then 'gcp'
-          WHEN `${var.logs_project_id}.${var.dataset_name}.IPBYTES_IN_CIDR`(ip, '35.191.0.0/16') then 'gcp'
-          WHEN `${var.logs_project_id}.${var.dataset_name}.IPBYTES_IN_CIDR`(ip, '130.211.0.0/22') then 'gcp'
+          ${join("\n", formatlist("WHEN `${var.logs_project_id}.${var.dataset_name}.IPBYTES_IN_CIDR`(ip, '%s') then '%s'", local.google_ipv4_cidrs, "Google IPv4 CIDR"))}
           ${join("\n", formatlist("WHEN `${var.logs_project_id}.${var.dataset_name}.IPBYTES_IN_CIDR`(ip, '%s') then '%s'", keys(local.ipv4_range_labels), values(local.ipv4_range_labels)))}
           ELSE FORMAT('netaddr4-%s', NET.IP_TO_STRING(ip & NET.IP_NET_MASK(4, ${var.ipv4_aggregate_prefix})))
         END
       WHEN 16 THEN
         CASE
-          WHEN `${var.logs_project_id}.${var.dataset_name}.IPBYTES_IN_CIDR`(ip, '2001:4860::/32') then 'gcp'
-          WHEN `${var.logs_project_id}.${var.dataset_name}.IPBYTES_IN_CIDR`(ip, '2404:6800::/32') then 'gcp'
-          WHEN `${var.logs_project_id}.${var.dataset_name}.IPBYTES_IN_CIDR`(ip, '2404:f340::/32') then 'gcp'
-          WHEN `${var.logs_project_id}.${var.dataset_name}.IPBYTES_IN_CIDR`(ip, '2600:1900::/32') then 'gcp'
-          WHEN `${var.logs_project_id}.${var.dataset_name}.IPBYTES_IN_CIDR`(ip, '2607:f8b0::/32') then 'gcp'
-          WHEN `${var.logs_project_id}.${var.dataset_name}.IPBYTES_IN_CIDR`(ip, '2620:11a:a000::/40') then 'gcp'
-          WHEN `${var.logs_project_id}.${var.dataset_name}.IPBYTES_IN_CIDR`(ip, '2620:120:e000::/40') then 'gcp'
-          WHEN `${var.logs_project_id}.${var.dataset_name}.IPBYTES_IN_CIDR`(ip, '2800:3f0::/32') then 'gcp'
-          WHEN `${var.logs_project_id}.${var.dataset_name}.IPBYTES_IN_CIDR`(ip, '2a00:1450::/32') then 'gcp'
-          WHEN `${var.logs_project_id}.${var.dataset_name}.IPBYTES_IN_CIDR`(ip, '2c0f:fb50::/32') then 'gcp'
+          ${join("\n", formatlist("WHEN `${var.logs_project_id}.${var.dataset_name}.IPBYTES_IN_CIDR`(ip, '%s') then '%s'", local.google_ipv6_cidrs, "Google IPv6 CIDR"))}
           ${join("\n", formatlist("WHEN `${var.logs_project_id}.${var.dataset_name}.IPBYTES_IN_CIDR`(ip, '%s') then '%s'", keys(local.ipv6_range_labels), values(local.ipv6_range_labels)))}
           ELSE FORMAT('netaddr6-%s', NET.IP_TO_STRING(ip & NET.IP_NET_MASK(16, ${var.ipv6_aggregate_prefix})))
         END
