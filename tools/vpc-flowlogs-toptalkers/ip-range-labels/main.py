@@ -3,6 +3,9 @@
 import json
 import netaddr
 import urllib.request
+import sys
+import yaml
+import io
 
 goog_url="https://www.gstatic.com/ipranges/goog.json"
 cloud_url="https://www.gstatic.com/ipranges/cloud.json"
@@ -18,12 +21,12 @@ def read_url(url):
       print("Could not parse HTTP response from %s" % url)
       return {}
 
-def main():
+def main(custom_labels):
    goog_json=read_url(goog_url)
    cloud_json=read_url(cloud_url)
 
    if goog_json and cloud_json:
-      print("# Please use update-google-cidrs.sh to update this file.")
+      print("# Please use update-google-ranges.sh to update this file.")
       print("# {} published: {}".format(goog_url,goog_json.get('creationTime')))
       print("# {} published: {}".format(cloud_url,cloud_json.get('creationTime')))
       goog_ipv4_cidrs = netaddr.IPSet()
@@ -40,12 +43,35 @@ def main():
             cloud_ipv4_cidrs.add(e.get('ipv4Prefix'))
          if e.get('ipv6Prefix'):
             cloud_ipv6_cidrs.add(e.get('ipv6Prefix'))
-      print("google_ipv4_cidrs:")
+      print("ipv4_range_labels:")
+      ipv4_cidr_labels = custom_labels.get('ipv4_range_labels', {})
+      if isinstance(ipv4_cidr_labels, dict):
+         for ip, label in ipv4_cidr_labels.items():
+            i = netaddr.IPNetwork(ip)
+            print(' - ["{}", "{}", "{}"]'.format(label, i[0], i[-1]))
       for i in goog_ipv4_cidrs.difference(cloud_ipv4_cidrs).iter_cidrs():
-         print(' - "{}"'.format(i))
-      print("google_ipv6_cidrs:")
+         print(' - ["Google IPv4 CIDR", "{}", "{}"]'.format(i[0], i[-1]))
+      print("ipv6_range_labels:")
+      ipv6_cidr_labels = custom_labels.get('ipv6_range_labels', {})
+      if isinstance(ipv6_cidr_labels, dict):
+         for ip, label in ipv6_cidr_labels.items():
+            i = netaddr.IPNetwork(ip)
+            print(' - ["{}", "{}", "{}"]'.format(label, i[0], i[-1]))
       for i in goog_ipv6_cidrs.difference(cloud_ipv6_cidrs).iter_cidrs():
-         print(' - "{}"'.format(i))
+         print(' - ["Google IPv4 CIDR", "{}", "{}"]'.format(i[0], i[-1]))
+      
 
 if __name__=='__main__':
-   main()
+
+   if 2 != len(sys.argv):
+      print("Expecting a single parameter which is the custom labels yaml file path.", file=sys.stderr)
+      sys.exit(1)
+
+   try:
+      with open(sys.argv[1], 'r') as stream:
+         custom_labels = yaml.safe_load(stream)
+   except:
+      print("Unable to read the custom labels file {}.".format(sys.argv[1]), file=sys.stderr)
+      sys.exit(1)
+
+   main(custom_labels)

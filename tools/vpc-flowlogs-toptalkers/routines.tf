@@ -15,9 +15,6 @@
  */
 
 locals {
-  google_cidrs = yamldecode(file("google-cidrs.yaml"))
-  google_ipv4_cidrs = local.google_cidrs.google_ipv4_cidrs
-  google_ipv6_cidrs = local.google_cidrs.google_ipv6_cidrs
   labels = yamldecode(file("labels.yaml"))
   ipv4_range_labels = coalesce(lookup(local.labels, "ipv4_range_labels", {}), {})
   ipv6_range_labels = coalesce(lookup(local.labels, "ipv6_range_labels", {}), {})
@@ -145,39 +142,6 @@ EOF
   ]
 }
 
-resource "google_bigquery_routine" "IP_TO_LABEL" {
-  project      = var.logs_project_id
-  dataset_id   = var.dataset_name
-  routine_id   = "IP_TO_LABEL"
-  language     = "SQL"
-  routine_type = "SCALAR_FUNCTION"
-  definition_body = trimspace(<<EOF
-    CASE BYTE_LENGTH(ip)
-      WHEN 4 THEN
-        CASE
-          ${join("\n", formatlist("WHEN `${var.logs_project_id}.${var.dataset_name}.IPBYTES_IN_CIDR`(ip, '%s') then '%s'", local.google_ipv4_cidrs, "Google IPv4 CIDR"))}
-          ${join("\n", formatlist("WHEN `${var.logs_project_id}.${var.dataset_name}.IPBYTES_IN_CIDR`(ip, '%s') then '%s'", keys(local.ipv4_range_labels), values(local.ipv4_range_labels)))}
-          ELSE FORMAT('netaddr4-%s', NET.IP_TO_STRING(ip & NET.IP_NET_MASK(4, ${var.ipv4_aggregate_prefix})))
-        END
-      WHEN 16 THEN
-        CASE
-          ${join("\n", formatlist("WHEN `${var.logs_project_id}.${var.dataset_name}.IPBYTES_IN_CIDR`(ip, '%s') then '%s'", local.google_ipv6_cidrs, "Google IPv6 CIDR"))}
-          ${join("\n", formatlist("WHEN `${var.logs_project_id}.${var.dataset_name}.IPBYTES_IN_CIDR`(ip, '%s') then '%s'", keys(local.ipv6_range_labels), values(local.ipv6_range_labels)))}
-          ELSE FORMAT('netaddr6-%s', NET.IP_TO_STRING(ip & NET.IP_NET_MASK(16, ${var.ipv6_aggregate_prefix})))
-        END
-    END
-EOF
-  )
-  arguments {
-    name      = "ip"
-    data_type = "{\"typeKind\" :  \"BYTES\"}"
-  }
-  depends_on    = [
-    module.destination,
-    google_bigquery_routine.IPBYTES_IN_CIDR
-  ]
-}
-
 resource "google_bigquery_routine" "IP_STRINGS_IN_CIDR" {
   project      = var.logs_project_id
   dataset_id   = var.dataset_name
@@ -207,26 +171,6 @@ EOF
   ]
 }
 
-resource "google_bigquery_routine" "IP_STRING_TO_LABEL" {
-  project      = var.logs_project_id
-  dataset_id   = var.dataset_name
-  routine_id   = "IP_STRING_TO_LABEL"
-  language     = "SQL"
-  routine_type = "SCALAR_FUNCTION"
-  definition_body = trimspace(<<EOF
-    # SUBSTR() is a workaround for b/175366248
-    `${var.logs_project_id}.${var.dataset_name}.IP_TO_LABEL`(NET.IP_FROM_STRING(SUBSTR(ip_str, 0, LENGTH(ip_str))))
-EOF
-  )
-  arguments {
-    name      = "ip_str"
-    data_type = "{\"typeKind\" :  \"STRING\"}"
-  }
-  depends_on    = [
-    module.destination,
-    google_bigquery_routine.IP_TO_LABEL
-  ]
-}
 
 resource "google_bigquery_routine" "IP_VERSION" {
   project      = var.logs_project_id

@@ -15,6 +15,18 @@
  */
 
 locals {
+  report_suffix = {
+    "day" = "daily"
+    "week" = "weekly"
+    "month" = "monthly"
+  }
+  ip_range_labels   = yamldecode(file("ip-range-labels.yaml"))
+  ipv4_ranges_start = [for ip_range in local.ip_range_labels.ipv4_range_labels : ip_range[1]]
+  ipv4_ranges_end   = [for ip_range in local.ip_range_labels.ipv4_range_labels : ip_range[2]]
+  ipv4_ranges_label = [for ip_range in local.ip_range_labels.ipv4_range_labels : ip_range[0]]
+  ipv6_ranges_start = [for ip_range in local.ip_range_labels.ipv6_range_labels : ip_range[1]]
+  ipv6_ranges_end   = [for ip_range in local.ip_range_labels.ipv6_range_labels : ip_range[2]]
+  ipv6_ranges_label = [for ip_range in local.ip_range_labels.ipv6_range_labels : ip_range[0]]
   ipv4_include_text = trimspace(<<EOT
   %{if var.enable_ipv4_traffic}
     %{if 0 < length(var.ipv4_ranges_to_include)}
@@ -89,16 +101,15 @@ EOT
   ))
 }
 
-
 resource "google_bigquery_table" "report" {
-  for_each = toset(["day", "week", "month"])
+  for_each = { for e in setproduct(["current", "previous"], ["day", "week", "month"]) : format("%s-%s", e[0], e[1]) => e }
   dataset_id    = var.dataset_name
-  friendly_name = "Top Talkers Report"
-  table_id      = "top_talkers_report_${each.key}"
+  friendly_name = "Top Talkers Report for the ${each.value[0]} month grouped by ${each.value[1]}"
+  table_id      = "top_talkers_report_${each.value[0]}_month_${local.report_suffix[each.value[1]]}"
+
   project       = var.logs_project_id
   depends_on    = [
     module.destination,
-    google_bigquery_routine.IP_STRING_TO_LABEL,
     google_bigquery_routine.PORTS_TO_PROTO,
     google_bigquery_routine.IP_VERSION
   ]
@@ -107,12 +118,44 @@ resource "google_bigquery_table" "report" {
   Regarding IPv6, the report will ${local.ipv6_include_text}.
 EOT
 
+  deletion_protection = false
   view {
-    query          = trimspace(<<EOF
+    query = trimspace(<<EOF
+WITH ip_range_labels AS (
+  SELECT *
+  FROM 
+  UNNEST(ARRAY<STRUCT<ip_start BYTES, ip_end BYTES, label STRING>>[
+    ${join("\n", formatlist("(NET.IP_FROM_STRING('%s'), NET.IP_FROM_STRING('%s'), '%s'),", local.ipv4_ranges_start, local.ipv4_ranges_end, local.ipv4_ranges_label))}
+    ${join("\n", formatlist("(NET.IP_FROM_STRING('%s'), NET.IP_FROM_STRING('%s'), '%s'),", local.ipv6_ranges_start, local.ipv6_ranges_end, local.ipv6_ranges_label))}
+    (CAST("" AS BYTES), CAST("" AS BYTES), NULL)
+  ])
+)
 SELECT
-  DATE_TRUNC(PARSE_DATE('%F', SPLIT(jsonPayload.start_time, 'T')[OFFSET(0)]), `${each.key}`) as time_period,
-  `${var.logs_project_id}.${var.dataset_name}.IP_STRING_TO_LABEL`(jsonPayload.connection.src_ip) AS src,
-  `${var.logs_project_id}.${var.dataset_name}.IP_STRING_TO_LABEL`(jsonPayload.connection.dest_ip) AS dest,
+  DATE_TRUNC(PARSE_DATE('%F', SPLIT(jsonPayload.start_time, 'T')[OFFSET(0)]), `${each.value[1]}`) as time_period,
+  COALESCE(
+    (SELECT label
+      FROM ip_range_labels
+      WHERE (NET.IP_FROM_STRING(jsonPayload.connection.src_ip)
+        BETWEEN ip_range_labels.ip_start AND ip_range_labels.ip_end)
+      LIMIT 1
+    ),
+    IF(BYTE_LENGTH(NET.IP_FROM_STRING(jsonPayload.connection.src_ip)) = 4,
+      FORMAT('netaddr4-%s', NET.IP_TO_STRING(NET.IP_FROM_STRING(jsonPayload.connection.src_ip) & NET.IP_NET_MASK(4, ${var.ipv4_aggregate_prefix}))),
+      FORMAT('netaddr6-%s', NET.IP_TO_STRING(NET.IP_FROM_STRING(jsonPayload.connection.src_ip) & NET.IP_NET_MASK(16, ${var.ipv6_aggregate_prefix})))
+    )
+  ) AS src,
+  COALESCE(
+    (SELECT label
+      FROM ip_range_labels
+      WHERE (NET.IP_FROM_STRING(jsonPayload.connection.dest_ip)
+        BETWEEN ip_range_labels.ip_start AND ip_range_labels.ip_end)
+      LIMIT 1
+    ),
+    IF(BYTE_LENGTH(NET.IP_FROM_STRING(jsonPayload.connection.dest_ip)) = 4,
+      FORMAT('netaddr4-%s', NET.IP_TO_STRING(NET.IP_FROM_STRING(jsonPayload.connection.dest_ip) & NET.IP_NET_MASK(4, ${var.ipv4_aggregate_prefix}))),
+      FORMAT('netaddr6-%s', NET.IP_TO_STRING(NET.IP_FROM_STRING(jsonPayload.connection.dest_ip) & NET.IP_NET_MASK(16, ${var.ipv6_aggregate_prefix})))
+    )
+  ) AS dest,
   MIN(jsonPayload.src_vpc.vpc_name) as src_vpc,
   MIN(jsonPayload.dest_vpc.vpc_name) as dest_vpc,
   `${var.logs_project_id}.${var.dataset_name}.PORTS_TO_PROTO`(
@@ -124,7 +167,14 @@ SELECT
 
 FROM `${var.logs_project_id}.${var.dataset_name}.compute_googleapis_com_vpc_flows_*`
 
-WHERE IF(`${var.logs_project_id}.${var.dataset_name}.IP_VERSION`(jsonPayload.connection.src_ip) = 4, ${local.ipv4_filter}, ${local.ipv6_filter})
+WHERE
+  IF(`${var.logs_project_id}.${var.dataset_name}.IP_VERSION`(jsonPayload.connection.src_ip) = 4, ${local.ipv4_filter}, ${local.ipv6_filter})
+  %{if "current" == each.value[0] }
+    AND _TABLE_SUFFIX BETWEEN FORMAT_DATE("%Y%m01", CURRENT_DATE()) AND FORMAT_DATE("%Y%m31", CURRENT_DATE())
+  %{endif}
+  %{if "previous" == each.value[0] }
+    AND _TABLE_SUFFIX BETWEEN FORMAT_DATE("%Y%m01", DATE_SUB(CURRENT_DATE(), INTERVAL 1 MONTH)) AND FORMAT_DATE("%Y%m31", DATE_SUB(CURRENT_DATE(), INTERVAL 1 MONTH))
+  %{endif}
 
 GROUP BY ${local.group_by}
 
