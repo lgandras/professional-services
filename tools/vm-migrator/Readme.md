@@ -17,8 +17,15 @@ To be able to execute the utility, the following prerequisites are to be met:
 
 1. Clone the code repository
 2. cd in the code directoy
+3. Optional if using a virtual environment: ```python3 -m venv env```
+3. Optional if using a virtual environment: ```source venv/bin/activate```
 3. run ```make install-requirements```
 4. run ```make install-tools```
+
+## Testing
+
+1. run ```make install```
+2. run ```make test```
 
 ## Configuration
 The `Makefile` has different variables which are passed to the subnet_region_migratory.py these variables can be overriden from the command line 
